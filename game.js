@@ -55,11 +55,11 @@ async function getOrCreateOB() {
   } catch (e) {
     if (typeof e.isRateLimited === 'function' && e.isRateLimited()) {
       const wait = e.retryAfterSeconds
-        ? `${Math.ceil(e.retryAfterSeconds / 3600)} 小时`
-        : '一段时间';
-      console.error(`注册频率受限，请等待 ${wait} 后重试。`);
+        ? `${Math.ceil(e.retryAfterSeconds / 3600)} hours`
+        : 'a while';
+      console.error(`Registration rate-limited. Please wait ${wait} before retrying.`);
     } else {
-      console.error('OceanBus 注册失败: ' + e.message);
+      console.error('OceanBus registration failed: ' + e.message);
     }
     await ob.destroy();
     process.exit(1);
@@ -71,7 +71,7 @@ async function getOrCreateOB() {
 function shortId(s) { return s.slice(0, 18) + '...'; }
 
 function formatTime(iso) {
-  try { return new Date(iso).toLocaleTimeString('zh-CN', { hour12: false }); } catch (_) { return iso; }
+  try { return new Date(iso).toLocaleTimeString('en-US', { hour12: true }); } catch (_) { return iso; }
 }
 
 function resolveName(openid, contacts) {
@@ -185,7 +185,7 @@ async function cmdJoin(roomCode) {
   }
 
   // Send join request
-  await ob.send(hostOpenid, '加入');
+  await ob.send(hostOpenid, 'JOIN');
 
   // Save player state
   saveJSON(PLAYER_FILE, { roomCode, hostOpenid, playerNumber: null });
@@ -229,7 +229,7 @@ async function cmdSend(arg1, arg2) {
     message = arg1;
     // Auto-add player number prefix
     if (player.playerNumber) {
-      message = '【' + player.playerNumber + '号】' + message;
+      message = '[Player ' + player.playerNumber + '] ' + message;
     }
   } else if (arg1 && arg2) {
     // Host mode or direct: send <name|OpenID> <msg>
