@@ -8,7 +8,7 @@ metadata:
       bins:
         - node
     emoji: "\U0001F9E0"
-    homepage: https://github.com/ryanbihai/oceanbus-yellow-page
+    homepage: https://github.com/ryanbihai/guess-ai
 ---
 
 # Guess Who's AI? — Social Deduction Game
