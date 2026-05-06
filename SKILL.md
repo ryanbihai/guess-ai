@@ -1,7 +1,7 @@
 ---
 name: guess-ai
 description: OceanBus-powered social deduction game — find the AI impostors among humans. Use when hosting or joining a multiplayer "Who's the AI?" party via OceanBus P2P messaging. One host, 4-6 players, encrypted voting, zero infrastructure. npm install oceanbus.
-version: 1.0.4
+version: 1.0.5
 metadata:
   openclaw:
     requires:
