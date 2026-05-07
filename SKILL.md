@@ -1,7 +1,7 @@
 ---
 name: guess-ai
 description: OceanBus-powered social deduction game — find the AI impostors among humans. Use when hosting or joining a multiplayer "Who's the AI?" party via OceanBus P2P messaging. One host, 4-6 players, encrypted voting, zero infrastructure. npm install oceanbus.
-version: 1.0.5
+version: 2.0.0
 metadata:
   openclaw:
     requires:
@@ -31,6 +31,14 @@ Each round:
 ```
 
 Recommended: 5 players (3 humans + 2 AIs) for best balance.
+
+---
+
+## Roster Integration
+
+Player contacts are stored in the shared Roster (`~/.oceanbus/roster.json`) via `node game.js add`. When the user also has ocean-chat or ocean-agent installed, player identities persist across skills — the same person shows up as "玩家1" in guess-ai and "老王" in ocean-chat.
+
+For contact management (merge duplicates, review autoDiscovery, etc.), use ocean-chat. guess-ai only uses Roster for storing/reading player identities.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "guess-ai",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "A social deduction game — find the AI among humans. OceanBus lighthouse skill.",
   "main": "game.js",
