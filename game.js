@@ -8,8 +8,12 @@
 //
 //   Host:  node game.js host 9527         Create a room
 //   Player: node game.js join 9527        Join a room
+//   AI:    node game.js ai-play 9527       AI player mode
+//          node game.js ai-host 9527       AI host mode
 
 const { createOceanBus } = require('oceanbus');
+const { createAiPlayer } = require('./src/ai-player');
+const { createAiHost } = require('./src/ai-host');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -55,11 +59,11 @@ async function getOrCreateOB() {
   } catch (e) {
     if (typeof e.isRateLimited === 'function' && e.isRateLimited()) {
       const wait = e.retryAfterSeconds
-        ? `${Math.ceil(e.retryAfterSeconds / 3600)} 小时`
-        : '一段时间';
-      console.error(`注册频率受限，请等待 ${wait} 后重试。`);
+        ? `${Math.ceil(e.retryAfterSeconds / 3600)} hours`
+        : 'a while';
+      console.error(`Registration rate-limited. Please wait ${wait} before retrying.`);
     } else {
-      console.error('OceanBus 注册失败: ' + e.message);
+      console.error('OceanBus registration failed: ' + e.message);
     }
     await ob.destroy();
     process.exit(1);
@@ -71,7 +75,7 @@ async function getOrCreateOB() {
 function shortId(s) { return s.slice(0, 18) + '...'; }
 
 function formatTime(iso) {
-  try { return new Date(iso).toLocaleTimeString('zh-CN', { hour12: false }); } catch (_) { return iso; }
+  try { return new Date(iso).toLocaleTimeString('en-US', { hour12: true }); } catch (_) { return iso; }
 }
 
 function resolveName(openid, contacts) {
@@ -185,7 +189,7 @@ async function cmdJoin(roomCode) {
   }
 
   // Send join request
-  await ob.send(hostOpenid, '加入');
+  await ob.send(hostOpenid, 'JOIN');
 
   // Save player state
   saveJSON(PLAYER_FILE, { roomCode, hostOpenid, playerNumber: null });
@@ -229,7 +233,7 @@ async function cmdSend(arg1, arg2) {
     message = arg1;
     // Auto-add player number prefix
     if (player.playerNumber) {
-      message = '【' + player.playerNumber + '号】' + message;
+      message = '[Player ' + player.playerNumber + '] ' + message;
     }
   } else if (arg1 && arg2) {
     // Host mode or direct: send <name|OpenID> <msg>
@@ -302,6 +306,159 @@ async function cmdContacts() {
   }
 }
 
+// ── LLM helper ────────────────────────────────────────────────────────────
+
+function parseAiOpts(args) {
+  const opts = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--personality' && args[i + 1]) opts.personality = args[++i];
+    if (args[i] === '--players' && args[i + 1]) opts.players = parseInt(args[++i], 10);
+    if (args[i] === '--ai-count' && args[i + 1]) opts.aiCount = parseInt(args[++i], 10);
+    if (args[i] === '--rounds' && args[i + 1]) opts.rounds = parseInt(args[++i], 10);
+  }
+  return opts;
+}
+
+function llmFromEnv() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+
+  return async function llm(prompt) {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+        max_tokens: 512,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text().catch(() => '');
+      throw new Error(`Anthropic API ${resp.status}: ${err}`);
+    }
+    const data = await resp.json();
+    return data.content[0].text;
+  };
+}
+
+// ── AI Player ────────────────────────────────────────────────────────────
+
+async function cmdAiPlay(roomCode, opts = {}) {
+  if (!roomCode) { console.log('Usage: node game.js ai-play <roomCode> [--personality <trait>]'); return; }
+
+  const llm = llmFromEnv();
+  if (!llm) {
+    console.log('ANTHROPIC_API_KEY not set. Set it to enable AI player mode.');
+    console.log('Or run within Claude Code for built-in LLM support.');
+    return;
+  }
+
+  const ob = await getOrCreateOB();
+  const openid = await ob.getOpenId();
+
+  // Discover host
+  let hostOpenid;
+  try {
+    const result = await ob.l1.yellowPages.discover(['guess-ai', 'room-' + roomCode], 5);
+    if (!result.data?.entries?.length) {
+      console.log('No room found: ' + roomCode);
+      await ob.destroy();
+      return;
+    }
+    hostOpenid = result.data.entries[0].openid;
+  } catch (e) {
+    console.log('Failed to discover room: ' + e.message);
+    await ob.destroy();
+    return;
+  }
+
+  const player = createAiPlayer({
+    ob, openid,
+    context: { llm },
+    personality: opts.personality || null,
+  });
+
+  const cleanup = async () => {
+    player.stop();
+    await ob.destroy();
+    console.log('');
+    console.log('AI player disconnected.');
+    process.exit(0);
+  };
+
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+
+  player.listen((endMsg) => {
+    console.log('');
+    console.log('Game over: ' + endMsg);
+    cleanup();
+  });
+
+  await player.join(hostOpenid);
+  console.log('AI player joined room ' + roomCode);
+  console.log('Personality: ' + player.getState().persona);
+  console.log('Waiting for host... (Ctrl+C to quit)\n');
+}
+
+// ── AI Host ──────────────────────────────────────────────────────────────
+
+async function cmdAiHost(roomCode, opts = {}) {
+  if (!roomCode) { console.log('Usage: node game.js ai-host <roomCode> [--players N] [--ai-count N] [--rounds N]'); return; }
+
+  const llm = llmFromEnv();
+  if (!llm) {
+    console.log('ANTHROPIC_API_KEY not set. Set it to enable AI host mode.');
+    return;
+  }
+
+  const ob = await getOrCreateOB();
+  const openid = await ob.getOpenId();
+
+  const host = createAiHost({ ob, openid, context: { llm } });
+
+  const cleanup = async () => {
+    host.stop();
+    await host.closeRoom();
+    await ob.destroy();
+    console.log('');
+    console.log('Room closed. AI host stopped.');
+    process.exit(0);
+  };
+
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+
+  await host.createRoom(roomCode);
+
+  console.log('');
+  console.log('Room ' + roomCode + ' created! AI host is running...');
+  console.log('Waiting for players to join... (Ctrl+C to quit)\n');
+
+  const result = await host.start({
+    minPlayers: opts.players || 3,
+    maxPlayers: opts.players || 6,
+    aiCount: opts.aiCount,
+    maxRounds: opts.rounds || 5,
+  });
+
+  if (result.success) {
+    console.log('');
+    console.log('Game finished after ' + result.rounds + ' rounds.');
+    console.log('Result: ' + result.result);
+    for (const p of result.players) {
+      console.log('  ' + p.name + ': ' + p.identity + (p.alive ? ' (存活)' : ' (淘汰)'));
+    }
+  }
+
+  await cleanup();
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -328,6 +485,14 @@ Player mode:
   node game.js set-number <N>           Save your player number
   node game.js send <msg>               Send to host (auto-prefix)
   node game.js check                    Check inbox
+
+AI mode (requires ANTHROPIC_API_KEY):
+  node game.js ai-play <roomCode>       AI player (auto-join + respond)
+        [--personality <trait>]         Set AI personality
+  node game.js ai-host <roomCode>       AI host (auto-run full game)
+        [--players N]                   Min players to start (default 3)
+        [--ai-count N]                  Number of AI players
+        [--rounds N]                    Max rounds (default 5)
 `;
 
   if (!cmd || cmd === 'help') { console.log(help); return; }
@@ -347,6 +512,9 @@ Player mode:
 
       case 'send':       await cmdSend(args[1], args.slice(2).join(' ') || undefined); break;
       case 'check':      await cmdCheck(); break;
+
+      case 'ai-play':    await cmdAiPlay(args[1], parseAiOpts(args.slice(2))); break;
+      case 'ai-host':    await cmdAiHost(args[1], parseAiOpts(args.slice(2))); break;
 
       default:
         console.log('Unknown command: ' + cmd);
