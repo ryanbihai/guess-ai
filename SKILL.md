@@ -1,7 +1,7 @@
 ---
 name: guess-ai
 description: OceanBus-powered social deduction game — find the AI impostors among humans. Use when hosting or joining a multiplayer "Who's the AI?" party via OceanBus P2P messaging. One host, 4-6 players, encrypted voting, zero infrastructure. npm install oceanbus.
-version: 2.0.0
+version: 2.1.2
 metadata:
   openclaw:
     requires:
@@ -225,6 +225,48 @@ Player:
 Either:
   node game.js whoami                    Show your OpenID
 ```
+
+---
+
+
+## AI Mode (two-stage reasoning)
+
+基于 Cicero 两阶段架构——策略推理 → 语言生成。需设置 `ANTHROPIC_API_KEY`。
+
+### AI Host（AI 裁判自动主持）
+
+```
+node game.js ai-host <roomCode> [--players N] [--ai-count N] [--rounds N]
+```
+
+自动执行完整游戏：等待玩家→分配身份→LLM 生成话题→发言/投票/揭示循环→结束判定。发言 2 分钟超时弃权，投票 1 分钟超时弃票，平票无人淘汰。
+
+### AI Player（AI 玩家自动参与）
+
+```
+node game.js ai-play <roomCode> [--personality <trait>]
+```
+
+两阶段决策：**Stage 1 策略推理**（跟票/搅浑/示弱/立论/反问），**Stage 2 语言生成**（基于策略+人设+上下文）。
+
+5 种人设：推理迷（逻辑分析）、社恐（犹豫紧张）、话痨（热情发散）、老实人（憨厚附和）、阴谋家（操控引导）。不指定时随机选，策略多样。
+
+### 端到端示例
+
+```
+AI Host                          AI Player
+node game.js ai-host 9527       node game.js ai-play 9527
+  Room created                    Joined, listening
+  Waiting for players...          Personality: 推理迷
+  Game started, 3 players
+  Round 1: 轮到你发言了           → Stage 1: B.搅浑
+                                  → Stage 2: "我觉得大家
+                                     都太认真了哈哈"
+  1号发言: ...
+  投票: 2号淘汰 — AI!
+  人类胜！
+```
+
 
 ---
 
