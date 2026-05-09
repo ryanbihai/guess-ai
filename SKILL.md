@@ -1,7 +1,7 @@
 ---
 name: guess-ai
 description: OceanBus-powered social deduction game — find the AI impostors among humans. Use when hosting or joining a multiplayer "Who's the AI?" party via OceanBus P2P messaging. One host, 4-6 players, encrypted voting, zero infrastructure. npm install oceanbus.
-version: 2.1.2
+version: 2.1.0
 metadata:
   openclaw:
     requires:
@@ -31,6 +31,8 @@ Each round:
 ```
 
 Recommended: 5 players (3 humans + 2 AIs) for best balance.
+
+All game messages are visible to the user. No data is sent without the player's explicit action.
 
 ---
 
@@ -231,7 +233,7 @@ Either:
 
 ## AI Mode (two-stage reasoning)
 
-基于 Cicero 两阶段架构——策略推理 → 语言生成。需设置 `ANTHROPIC_API_KEY`。
+基于 Cicero 两阶段架构——策略推理 → 语言生成。需配置 LLM API 密钥。
 
 ### AI Host（AI 裁判自动主持）
 
