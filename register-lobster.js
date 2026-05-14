@@ -29,8 +29,8 @@ async function main() {
   } else {
     const ob = await createOceanBus({ keyStore: { type: 'memory' } });
     try {
-      const reg = await ob.register();
-      openid = await ob.getOpenId();
+      const reg = await ob.createIdentity();
+      openid = await ob.getAddress();
       agentId = reg.agent_id;
       apiKey = reg.api_key;
       fs.writeFileSync(CRED_FILE, JSON.stringify({ agent_id: agentId, api_key: apiKey, openid }, null, 2));

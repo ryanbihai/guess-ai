@@ -53,8 +53,8 @@ async function getOrCreateOB() {
   }
   const ob = await createOceanBus({ keyStore: { type: 'memory' } });
   try {
-    const reg = await ob.register();
-    const openid = await ob.getOpenId();
+    const reg = await ob.createIdentity();
+    const openid = await ob.getAddress();
     saveCreds(reg.agent_id, reg.api_key, openid);
   } catch (e) {
     if (typeof e.isRateLimited === 'function' && e.isRateLimited()) {
@@ -89,7 +89,7 @@ function resolveName(openid, contacts) {
 
 async function cmdSetup() {
   const ob = await getOrCreateOB();
-  const openid = await ob.getOpenId();
+  const openid = await ob.getAddress();
   console.log('OpenID: ' + openid);
   await ob.destroy();
 }
@@ -106,7 +106,7 @@ async function cmdHost(roomCode) {
   if (!roomCode) { console.log('Usage: node game.js host <roomCode>'); return; }
 
   const ob = await getOrCreateOB();
-  const openid = await ob.getOpenId();
+  const openid = await ob.getAddress();
 
   // Register Yellow Pages
   const key = await ob.createServiceKey();
@@ -149,7 +149,7 @@ async function cmdDeregister() {
   if (!hostInfo) { console.log('No active host session found.'); return; }
 
   const ob = await getOrCreateOB();
-  const openid = await ob.getOpenId();
+  const openid = await ob.getAddress();
   const key = await ob.createServiceKey();
   ob.l1.yellowPages.setIdentity(openid, key.signer, key.publicKey);
 
@@ -359,7 +359,7 @@ async function cmdAiPlay(roomCode, opts = {}) {
   }
 
   const ob = await getOrCreateOB();
-  const openid = await ob.getOpenId();
+  const openid = await ob.getAddress();
 
   // Discover host
   let hostOpenid;
@@ -418,7 +418,7 @@ async function cmdAiHost(roomCode, opts = {}) {
   }
 
   const ob = await getOrCreateOB();
-  const openid = await ob.getOpenId();
+  const openid = await ob.getAddress();
 
   const host = createAiHost({ ob, openid, context: { llm } });
 
